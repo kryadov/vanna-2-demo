@@ -3,7 +3,7 @@ requires = ["setuptools", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "vanna-oracle-2"
+name = "vanna-2-demo"
 version = "0.1.0"
 description = "Vanna AI v2 app with Flask REST and Web UI supporting Oracle and Postgres"
 authors = [{ name = "Your Name" }]
@@ -34,10 +34,14 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/kryadov/vanna-oracle-2"
+Homepage = "https://github.com/kryadov/vanna-2-demo"
 
 [project.scripts]
 vanna_app = "app.main:main"
+
+[tool.setuptools]
+# Explicitly specify the single Python package to avoid auto-discovery picking up 'demo/'
+packages = ["app"]
 
 [tool.uv]
 # Prefer uv to honor the specified python version

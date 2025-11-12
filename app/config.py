@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Optional
 
 from dotenv import load_dotenv
@@ -51,10 +51,10 @@ class LLMConfig:
 
 @dataclass
 class Settings:
-    app: AppConfig = AppConfig()
-    log: LogConfig = LogConfig()
-    db: DBConfig = DBConfig()
-    llm: LLMConfig = LLMConfig()
+    app: AppConfig = field(default_factory=AppConfig)
+    log: LogConfig = field(default_factory=LogConfig)
+    db: DBConfig = field(default_factory=DBConfig)
+    llm: LLMConfig = field(default_factory=LLMConfig)
 
 
 settings = Settings()
