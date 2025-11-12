@@ -1,0 +1,44 @@
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "vanna-oracle-2"
+version = "0.1.0"
+description = "Vanna AI v2 app with Flask REST and Web UI supporting Oracle and Postgres"
+authors = [{ name = "Your Name" }]
+readme = "README.md"
+requires-python = ">=3.13"
+keywords = ["vanna", "nl2sql", "flask", "oracle", "postgres", "ollama", "openai", "google-ai"]
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3 :: Only",
+  "Programming Language :: Python :: 3.13",
+  "Framework :: Flask",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: MIT License",
+]
+# uv supports PEP 508 VCS URLs in dependencies
+# vanna v2 from git with extras, plus provider SDKs and DB drivers
+dependencies = [
+  "Flask>=3.0.0",
+  "python-dotenv>=1.0.1",
+  "SQLAlchemy>=2.0.30",
+  "psycopg[binary]>=3.1.18",
+  "oracledb>=2.1.0",
+  "pandas>=2.2.0",
+  "openai>=1.51.0",
+  "google-generativeai>=0.8.0",
+  "ollama>=0.3.0",
+  "vanna[flask,anthropic] @ git+https://github.com/vanna-ai/vanna.git@v2",
+]
+
+[project.urls]
+Homepage = "https://github.com/kryadov/vanna-oracle-2"
+
+[project.scripts]
+vanna_app = "app.main:main"
+
+[tool.uv]
+# Prefer uv to honor the specified python version
+python-preference = "only-managed"

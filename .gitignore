@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg-info/
+.build/
+.dist/
+.eggs/
+
+# Virtual envs
+.venv/
+venv/
+.env
+
+# IDEs
+.idea/
+.vscode/
+
+# Local data
+.data/
+.chroma/
+.vanna/
+.logs/
+
+# Streamlit
+.streamlit/
+
+# OS
+.DS_Store
+Thumbs.db
