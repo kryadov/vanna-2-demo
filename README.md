@@ -1,11 +1,15 @@
-### Vanna AI v2 — NL2SQL App (Flask + REST + Web UI)
+### Vanna AI v2 — FastAPI Server App
 
-This app is a minimal reference implementation that wires up Vanna AI v2 to a database (PostgreSQL or Oracle), exposes a REST API and a simple Web UI, and is configured via a `.env` file. It uses the `uv` Python package manager and runs on Python 3.13.
+This app is a minimal reference implementation that runs a Vanna AI v2 Agent with a FastAPI server and a built‑in chat UI. It is configured via a `.env` file, uses the `uv` Python package manager, and runs on Python 3.13.
 
-- REST API: `/api/health`, `/api/db-test`, `/api/ask`
-- Web UI: `GET /` (simple form that calls `/api/ask`)
-- Databases: PostgreSQL, Oracle (python-oracledb Thin)
-- LLM providers: OpenAI, Google Generative AI, Ollama
+- Built‑in UI: `GET /` (served by Vanna’s FastAPI server)
+- Health: `GET /health`
+- Chat API (v2):
+  - `POST /api/vanna/v2/chat_sse` (streaming via Server‑Sent Events)
+  - `POST /api/vanna/v2/chat_poll` (polling)
+  - `WS   /api/vanna/v2/chat_websocket` (WebSocket)
+- FastAPI docs: `GET /docs`
+- LLM providers: Anthropic (default), Ollama
 - Logging: INFO level by default
 
 Reference: Vanna v2 README — https://github.com/vanna-ai/vanna/blob/v2/README.md
@@ -54,62 +58,18 @@ See `.env.example` for all options. Key variables:
   - `APP_HOST` (default `0.0.0.0`), `APP_PORT` (default `8000`), `APP_DEBUG` (`true`/`false`)
   - `LOG_LEVEL` (default `INFO`)
 
-- Database (choose one dialect)
-  - `DB_DIALECT=postgres` or `DB_DIALECT=oracle`
-  - Either set parts: `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME`
-  - Or provide a full DSN via `DB_DSN` which overrides parts
+- LLM provider
+  - Default: Anthropic Sonnet (`LLM_MODEL` can override model name)
+  - Ollama: set `LLM_PROVIDER=ollama`
+    - `OLLAMA_BASE_URL` (default `http://localhost:11434`)
+    - `OLLAMA_MODEL` (default `llama3`)
 
-  Examples:
-  - PostgreSQL: `postgresql+psycopg://user:pass@host:5432/dbname`
-  - Oracle: `oracle+oracledb://user:pass@host:1521/?service_name=FREEPDB1`
-
-- LLM provider (choose one)
-  - `LLM_PROVIDER=openai | google | ollama`
-  - OpenAI: `OPENAI_API_KEY`, optional `OPENAI_BASE_URL` (e.g., Azure or proxy)
-  - Google GenAI: `GOOGLE_API_KEY`
-  - Ollama: `OLLAMA_BASE_URL` (default `http://localhost:11434`) and optional `OLLAMA_MODEL` (default `llama3`)
+Note: This app no longer includes the custom Flask REST endpoints or the SQLAlchemy database runner. If you want to connect tools to your database (e.g., Postgres/Oracle), register an appropriate `RunSqlTool` in `app/main.py` (instead of the default SQLite example).
 
 
-### PostgreSQL demo schema (quick start)
+### Optional: Database tooling
 
-If you want to try the app without hooking it up to your own database, a tiny demo schema with sample data is provided for PostgreSQL.
-
-1) Ensure your `.env` points to a running Postgres instance and uses the `postgres` dialect, for example:
-   ```ini
-   DB_DIALECT=postgres
-   DB_HOST=localhost
-   DB_PORT=5432
-   DB_USER=postgres
-   DB_PASSWORD=postgres
-   DB_NAME=postgres
-   ```
-
-2) Load the demo schema and data using `psql`:
-   - Windows (PowerShell):
-     ```powershell
-     psql -h $env:DB_HOST -p $env:DB_PORT -U $env:DB_USER -d $env:DB_NAME -f demo/postgres-demo.sql
-     ```
-     If you haven’t exported those env vars, just type them explicitly:
-     ```powershell
-     psql -h localhost -p 5432 -U postgres -d postgres -f demo/postgres-demo.sql
-     ```
-   - macOS/Linux:
-     ```bash
-     psql -h localhost -p 5432 -U postgres -d postgres -f demo/postgres-demo.sql
-     ```
-
-   Tip: If you’re using Docker for Postgres, you can run:
-   ```bash
-   docker exec -i <postgres-container> psql -U postgres -d postgres -f - < demo/postgres-demo.sql
-   ```
-
-3) Start the app (see “Running the app” below) and try questions like:
-   - "Total revenue by customer in 2024"
-   - "Top 5 products by revenue"
-   - "Monthly revenue trend for 2024"
-   - "List orders with their total amounts"
-
-The demo creates tables: `categories`, `products`, `customers`, `orders`, `order_items` and helpful views: `order_revenue`, `customer_revenue_year`.
+By default, `app/main.py` registers a `RunSqlTool` with a SQLite runner pointed at `./data.db` as a simple example. To target your own database (Postgres, Oracle, etc.), replace that tool with the appropriate Vanna integration in `main.py` and ensure required drivers are installed.
 
 
 ### Running the app
@@ -122,28 +82,16 @@ The demo creates tables: `categories`, `products`, `customers`, `orders`, `order
   ```
 
 - Open in your browser: http://localhost:8000
+  - Built‑in UI: `GET /`
+  - Health: `GET /health`
+  - API docs: `GET /docs`
 
-- Health check and DB test:
-  - `GET http://localhost:8000/api/health`
-  - `GET http://localhost:8000/api/db-test`
-
-- Ask endpoint:
-  - `POST http://localhost:8000/api/ask`
-    ```json
-    {
-      "question": "Top 10 customers by revenue in 2024",
-      "execute": true,
-      "limit": 50
-    }
-    ```
-
-The service will generate SQL using Vanna and, if `execute=true`, it will run the SQL against your configured database. For safety, when a limit isn’t found in the query, the app wraps the generated SQL with a row cap (Postgres: `LIMIT N`, Oracle: `FETCH FIRST N ROWS ONLY`).
+The service exposes Vanna’s v2 chat endpoints (`/api/vanna/v2/*`) for SSE, polling, and WebSocket.
 
 
 ### Notes on providers
 
-- OpenAI: requires `OPENAI_API_KEY`. If using Azure OpenAI or a proxy set `OPENAI_BASE_URL` accordingly.
-- Google: requires `GOOGLE_API_KEY`. The app also calls `google.generativeai.configure(...)` when selected.
+- Anthropic: default when `LLM_PROVIDER` is unset or not `ollama`. Set `LLM_MODEL` to change model name.
 - Ollama: ensure `OLLAMA_BASE_URL` points to a running server and that you’ve pulled a model. Default model name used is `OLLAMA_MODEL`.
 
 
@@ -151,19 +99,12 @@ The service will generate SQL using Vanna and, if `execute=true`, it will run th
 
 ```
 app/
-  api.py             # REST endpoints
+  __init__.py
   config.py          # .env configuration loader
-  db.py              # SQLAlchemy engine + helpers (Postgres/Oracle)
   logging_config.py  # INFO level logging
-  main.py            # Flask app factory and entrypoint
-  vanna_service.py   # Vanna v2 integration wrapper
-  templates/
-    index.html       # Web UI
-  static/
-    main.js          # UI logic to call /api/ask
-    styles.css       # Basic styles
+  main.py            # FastAPI app (Vanna v2 server) and entrypoint
 demo/
-  postgres-demo.sql  # Sample retail schema and data for Postgres
+  postgres-demo.sql  # (optional) sample schema/data for Postgres
 .env.example
 pyproject.toml
 README.md
@@ -172,8 +113,8 @@ README.md
 
 ### Troubleshooting
 
-- If Oracle connection fails, verify service name, port, and credentials. `python-oracledb` uses Thin mode by default and does not require Instant Client.
-- If Vanna fails to initialize, try the force reinstall command above and confirm you’re on the `v2` branch.
+- If the server fails to start, ensure dependencies are installed (`uv sync`) and that your selected LLM provider is available.
+- For Ollama, confirm the local server is running and the model is pulled.
 - On Windows with corporate proxies, set `HTTP_PROXY`/`HTTPS_PROXY` as needed for dependency installs and provider access.
 
 

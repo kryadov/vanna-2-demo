@@ -30,7 +30,8 @@ dependencies = [
   "openai>=1.51.0",
   "google-generativeai>=0.8.0",
   "ollama>=0.3.0",
-  "vanna[flask,anthropic] @ git+https://github.com/vanna-ai/vanna.git@v2",
+  "uvicorn[standard]>=0.30.0",
+  "vanna[fastapi,anthropic,ollama,postgres] @ git+https://github.com/vanna-ai/vanna.git@v2",
 ]
 
 [project.urls]
