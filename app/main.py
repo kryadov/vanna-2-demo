@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import logging
-from pathlib import Path
 
+from vanna import Agent, AgentConfig
 from vanna.integrations.postgres import PostgresRunner
 
 from .config import settings
@@ -12,15 +12,14 @@ from .logging_config import configure_logging
 from vanna.core.user import UserResolver, User, RequestContext
 
 # 2. Set up LLM and tools
-from vanna import Agent  # type: ignore
 try:  # Prefer core path if available (v2+)
     from vanna.core.registry import ToolRegistry  # type: ignore
 except Exception:  # Fallback for older builds
     from vanna import ToolRegistry  # type: ignore
 from vanna.servers.fastapi import VannaFastAPIServer  # type: ignore
 from vanna.integrations.local.agent_memory import DemoAgentMemory  # type: ignore
-from vanna.tools import RunSqlTool  # type: ignore
-from vanna.integrations.sqlite import SqliteRunner  # type: ignore
+from vanna.tools.agent_memory import SaveQuestionToolArgsTool, SearchSavedCorrectToolUsesTool # type: ignore
+from vanna.tools import RunSqlTool, VisualizeDataTool  # type: ignore
 
 
 class SimpleUserResolver(UserResolver):
@@ -32,45 +31,96 @@ class SimpleUserResolver(UserResolver):
 
 # Configure logging early so uvicorn imports get our setup
 configure_logging()
-logging.getLogger(__name__).info("Starting VannaFastAPIServer with settings: %s", settings)
+logger = logging.getLogger(__name__)
+logger.info("Starting VannaFastAPIServer with settings: %s", settings)
 
 # LLM and tools
 # Choose LLM based on configured provider
-provider = (settings.llm.provider or "").lower()
-logging.getLogger(__name__).info("Initializing LLM provider: %s", provider or "<unset>")
+provider = (settings.llm.provider or "anthropic").strip().lower()
+logger.info("Initializing LLM provider: %s", provider)
 
 if provider == "ollama":
     # Import locally so the app can still start if Anthropic deps aren't present
     try:
         from vanna.integrations.ollama.llm import OllamaLlmService  # type: ignore
     except Exception as e:  # pragma: no cover
-        logging.getLogger(__name__).error("Ollama integration is not available: %s", e)
+        logger.error("Ollama integration is not available: %s", e)
         raise
 
     host = settings.llm.ollama_base_url or "http://localhost:11434"
     model = settings.llm.ollama_model or "llama3"
     llm = OllamaLlmService(model=model, host=host, temperature=0.2)
-else:
-    # Default to Anthropic when provider is not 'ollama'
+elif provider in {"google", "gemini"}:
+    try:
+        from vanna.integrations.google import GeminiLlmService  # type: ignore
+    except Exception as e:  # pragma: no cover
+        logger.error("Google Gemini integration is not available: %s", e)
+        raise
+
+    llm = GeminiLlmService(
+        model=(settings.llm.model or "gemini-2.5-pro"),
+        api_key=settings.llm.google_api_key,
+        temperature=0.2,
+    )
+elif provider == "openai":
+    try:
+        from vanna.integrations.openai import OpenAILlmService  # type: ignore
+    except Exception as e:  # pragma: no cover
+        logger.error("OpenAI integration is not available: %s", e)
+        raise
+
+    llm = OpenAILlmService(
+        model=(settings.llm.model or "gpt-5"),
+        api_key=settings.llm.openai_api_key,
+        base_url=settings.llm.openai_base_url,
+    )
+elif provider == "anthropic":
     try:
         from vanna.integrations.anthropic import AnthropicLlmService  # type: ignore
     except Exception as e:  # pragma: no cover
-        logging.getLogger(__name__).error("Anthropic integration is not available: %s", e)
+        logger.error("Anthropic integration is not available: %s", e)
         raise
 
     llm = AnthropicLlmService(model=(settings.llm.model or "claude-sonnet-4-5"))
+else:
+    raise ValueError(
+        f"Unsupported LLM_PROVIDER '{provider}'. Supported providers: anthropic, google, openai, ollama."
+    )
+
+
+def _create_postgres_runner() -> PostgresRunner:
+    dsn = (settings.db.dsn or "").strip()
+    if dsn:
+        logger.debug("Initializing PostgresRunner with DB_DSN")
+        return PostgresRunner(connection_string=dsn)
+
+    logger.debug("Initializing PostgresRunner with host/db/user parameters")
+    return PostgresRunner(
+        host=settings.db.host,
+        port=int(settings.db.port) if settings.db.port else 5432,
+        database=settings.db.name,
+        user=settings.db.user,
+        password=settings.db.password,
+    )
+
+
 tools = ToolRegistry()
 # ToolRegistry in Vanna v2 uses register_local_tool instead of register
 tools.register_local_tool(
-    RunSqlTool(sql_runner=PostgresRunner(connection_string=settings.db)), access_groups=[]
+    RunSqlTool(sql_runner=_create_postgres_runner()), access_groups=[]
 )
+tools.register_local_tool(VisualizeDataTool(), access_groups=['admin', 'user'])
+agent_memory = DemoAgentMemory(max_items=1000)
+tools.register_local_tool(SaveQuestionToolArgsTool(), access_groups=['admin'])
+tools.register_local_tool(SearchSavedCorrectToolUsesTool(), access_groups=['admin', 'user'])
 
 # 3. Create agent
 agent = Agent(
     llm_service=llm,
     tool_registry=tools,
     user_resolver=SimpleUserResolver(),
-    agent_memory=DemoAgentMemory(),
+    config=AgentConfig(),
+    agent_memory=agent_memory
 )
 
 # 4. Create and run server

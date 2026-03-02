@@ -37,7 +37,7 @@ class DBConfig:
 
 @dataclass
 class LLMConfig:
-    provider: str = os.getenv("LLM_PROVIDER", "openai").lower()  # openai|google|ollama
+    provider: str = os.getenv("LLM_PROVIDER", "anthropic").lower()  # anthropic|google|openai|ollama
     model: Optional[str] = os.getenv("LLM_MODEL")
     # OpenAI
     openai_api_key: Optional[str] = os.getenv("OPENAI_API_KEY")

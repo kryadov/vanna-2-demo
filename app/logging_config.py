@@ -10,4 +10,9 @@ def configure_logging() -> None:
     logging.basicConfig(
         level=level,
         format="%(asctime)s %(levelname)s [%(name)s] %(message)s",
+        force=True,
     )
+
+    if level > logging.DEBUG:
+        logging.getLogger("httpx").setLevel(logging.WARNING)
+        logging.getLogger("httpcore").setLevel(logging.WARNING)
